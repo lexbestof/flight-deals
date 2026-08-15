@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Alerte vols Kinshasa</title>
+<style>
+body{font-family:system-ui,sans-serif;background:#f5f7fb;color:#172033;margin:0;padding:28px 16px}
+.wrap{max-width:950px;margin:auto}
+.card{background:#fff;border-radius:20px;padding:24px;box-shadow:0 8px 30px #00000012;margin-bottom:18px}
+h1{font-size:clamp(30px,6vw,52px);margin:.2em 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.rule{background:#f7f9fc;border:1px solid #e1e6ef;border-radius:14px;padding:15px}
+button{border:0;background:#172033;color:white;padding:13px 18px;border-radius:10px;font-weight:700;font-size:16px;cursor:pointer}
+.price{font-size:28px;font-weight:850}
+.offer{border-top:1px solid #edf0f5;padding:16px 0}
+.muted{color:#697489}
+.ok{background:#eaf8ef;border:1px solid #bee6cb;border-radius:14px;padding:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<section class="card">
+<h1>Vols vers Kinshasa</h1>
+<p>Recherche fixe : départ autour du 19 août 2026 (±1 jour) et retour autour du 30 août 2026 (±1 jour).</p>
+<div class="grid">
+<div class="rule"><strong>Paris ↔ Kinshasa</strong><br>18–20 août → 29–31 août<br><b>≤ 750 €</b></div>
+<div class="rule"><strong>Bruxelles ↔ Kinshasa</strong><br>18–20 août → 29–31 août<br><b>≤ 650 €</b></div>
+</div>
+<p><button id="btn">Vérifier maintenant</button></p>
+</section>
+<div id="status"></div>
+<div id="results"></div>
+</div>
+<script>
+const API_BASE_URL="https://REMPLACE-MOI.onrender.com";
+const btn=document.getElementById("btn"), status=document.getElementById("status"), results=document.getElementById("results");
+
+function offer(o){
+ const a=(o.outbound?.airlines||[]).join(", ")||o.owner||"Compagnie";
+ return `<div class="offer"><div class="price">${o.price.toFixed(2)} €</div>
+ <b>${o.route}</b><br>
+ <span class="muted">Aller ${o.departure_date} · Retour ${o.return_date} · ${a} · ${o.outbound?.stops ?? "?"} escale(s) à l'aller</span></div>`;
+}
+btn.onclick=async()=>{
+ btn.disabled=true; status.innerHTML='<div class="card">Recherche en cours…</div>'; results.innerHTML="";
+ try{
+  const r=await fetch(API_BASE_URL+"/search"), d=await r.json();
+  if(!r.ok) throw new Error(d.detail||"Erreur");
+  status.innerHTML=d.best_offer
+   ? `<div class="ok"><b>Meilleure offre :</b> ${d.best_offer.route} — <span class="price">${d.best_offer.price.toFixed(2)} €</span></div>`
+   : `<div class="card"><b>Aucune offre sous les plafonds actuellement.</b></div>`;
+  let html="";
+  for(const [key,route] of Object.entries(d.routes)){
+   html+=`<section class="card"><h2>${route.label}</h2><p class="muted">Plafond ${route.threshold.toFixed(0)} €</p>`;
+   html+=route.offers.length?route.offers.slice(0,10).map(offer).join(""):"<p>Aucune offre dans le budget.</p>";
+   html+="</section>";
+  }
+  results.innerHTML=html;
+ }catch(e){status.innerHTML=`<div class="card">${e.message}</div>`}
+ finally{btn.disabled=false}
+};
+</script>
+</body>
+</html>
