@@ -62,7 +62,7 @@ app.add_middleware(
 
 
 # ============================================================
-# ROUTES ET DATES DE RECHERCHE
+# SECTIONS AFFICHÉES SUR LE SITE
 # ============================================================
 
 ROUTES = [
@@ -71,17 +71,81 @@ ROUTES = [
         "label": "Paris ↔ Kinshasa",
         "origin": "PAR",
         "destination": "FIH",
+
+        # Pas de minimum.
+        "min_price_eur": 0.0,
+
+        # Offres jusqu'à 750 € inclus.
         "max_price_eur": 750.0,
     },
+
     {
         "key": "brussels",
         "label": "Bruxelles ↔ Kinshasa",
         "origin": "BRU",
         "destination": "FIH",
+
+        # Pas de minimum.
+        "min_price_eur": 0.0,
+
+        # Offres jusqu'à 650 € inclus.
+        "max_price_eur": 650.0,
+    },
+
+    {
+        "key": "paris_650_1000",
+        "label": "Paris ↔ Kinshasa — 650 à 1000 €",
+        "origin": "PAR",
+        "destination": "FIH",
+
+        # 650 € inclus.
+        "min_price_eur": 650.0,
+
+        # 1000 € inclus.
+        "max_price_eur": 1000.0,
+    },
+]
+
+
+# ============================================================
+# TRAJETS RÉELLEMENT INTERROGÉS CHEZ DUFFEL
+# ============================================================
+
+# Important :
+#
+# Même si nous avons maintenant 3 sections sur le site,
+# il n'y a que 2 trajets différents à rechercher chez Duffel :
+#
+#   PAR -> FIH
+#   BRU -> FIH
+#
+# Cela évite de rechercher deux fois exactement les mêmes
+# vols Paris -> Kinshasa.
+
+SEARCH_ROUTES = [
+    {
+        "key": "paris_search",
+        "origin": "PAR",
+        "destination": "FIH",
+
+        # On récupère jusqu'à 1000 € pour pouvoir ensuite
+        # alimenter les deux sections Paris.
+        "max_price_eur": 1000.0,
+    },
+
+    {
+        "key": "brussels_search",
+        "origin": "BRU",
+        "destination": "FIH",
+
         "max_price_eur": 650.0,
     },
 ]
 
+
+# ============================================================
+# DATES
+# ============================================================
 
 DEPARTURE_DATES = [
     date(2026, 8, 18),
@@ -101,10 +165,6 @@ RETURN_DATES = [
 # CACHE
 # ============================================================
 
-# Cache simple en mémoire.
-#
-# Il permet d'éviter de refaire immédiatement 18 recherches
-# Duffel lorsqu'un utilisateur reclique sur le bouton.
 _search_cache = {
     "offers": None,
     "created_at": 0.0,
@@ -122,7 +182,10 @@ def cache_is_valid() -> bool:
     if _search_cache["offers"] is None:
         return False
 
-    age = time.monotonic() - _search_cache["created_at"]
+    age = (
+        time.monotonic()
+        - _search_cache["created_at"]
+    )
 
     return age < CACHE_TTL_SECONDS
 
@@ -135,7 +198,10 @@ def segment_summary(
     slice_data: dict[str, Any]
 ) -> dict[str, Any]:
 
-    segments = slice_data.get("segments") or []
+    segments = (
+        slice_data.get("segments")
+        or []
+    )
 
     if not segments:
         return {}
@@ -190,21 +256,14 @@ def get_rate_limit_wait_seconds(
     response: httpx.Response
 ) -> int:
     """
-    Lit l'en-tête ratelimit-reset envoyé par Duffel.
-
-    Duffel fournit normalement une date HTTP, par exemple :
-
-    Tue, 24 Nov 2020 08:22:00 GMT
-
-    On calcule combien de secondes il faut attendre.
+    Lit l'en-tête ratelimit-reset envoyé par Duffel
+    et calcule combien de secondes attendre.
     """
 
     reset_header = response.headers.get(
         "ratelimit-reset"
     )
 
-    # Valeur de secours si l'en-tête est absent
-    # ou impossible à interpréter.
     fallback_wait = 5
 
     if not reset_header:
@@ -217,17 +276,19 @@ def get_rate_limit_wait_seconds(
         )
 
         if reset_time.tzinfo is None:
+
             reset_time = reset_time.replace(
                 tzinfo=timezone.utc
             )
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(
+            timezone.utc
+        )
 
         seconds = (
             reset_time - now
         ).total_seconds()
 
-        # +1 seconde de marge.
         return max(
             1,
             math.ceil(seconds) + 1
@@ -249,8 +310,8 @@ async def post_duffel_with_retry(
     """
     Envoie une Offer Request à Duffel.
 
-    En cas de HTTP 429, on respecte automatiquement
-    l'en-tête ratelimit-reset avant de réessayer.
+    En cas de HTTP 429, attend automatiquement
+    avant de réessayer.
     """
 
     for attempt in range(
@@ -262,8 +323,10 @@ async def post_duffel_with_retry(
 
             params={
                 "return_offers": "true",
+
                 "supplier_timeout":
                     str(SUPPLIER_TIMEOUT_MS),
+
                 "view": "offers",
             },
 
@@ -284,11 +347,11 @@ async def post_duffel_with_retry(
             json=payload,
         )
 
-        # Tout va bien : pas de rate limit.
+        # Pas de rate limit.
         if response.status_code != 429:
             return response
 
-        # Nous sommes déjà à la dernière tentative.
+        # Dernière tentative déjà atteinte.
         if attempt >= MAX_RATE_LIMIT_RETRIES:
 
             raise RuntimeError(
@@ -313,8 +376,6 @@ async def post_duffel_with_retry(
             wait_seconds
         )
 
-    # Cette ligne ne devrait normalement
-    # jamais être atteinte.
     raise RuntimeError(
         "Impossible de contacter Duffel."
     )
@@ -326,30 +387,32 @@ async def post_duffel_with_retry(
 
 async def search_one(
     client: httpx.AsyncClient,
-    route: dict[str, Any],
+    search_route: dict[str, Any],
     departure: date,
     return_date: date,
 ):
 
     payload = {
         "data": {
+
             "slices": [
                 {
                     "origin":
-                        route["origin"],
+                        search_route["origin"],
 
                     "destination":
-                        route["destination"],
+                        search_route["destination"],
 
                     "departure_date":
                         departure.isoformat(),
                 },
+
                 {
                     "origin":
-                        route["destination"],
+                        search_route["destination"],
 
                     "destination":
-                        route["origin"],
+                        search_route["origin"],
 
                     "departure_date":
                         return_date.isoformat(),
@@ -400,7 +463,7 @@ async def search_one(
 
     for offer in offers:
 
-        # Nous voulons uniquement des tarifs EUR.
+        # Seulement les tarifs en euros.
         if offer.get("total_currency") != "EUR":
             continue
 
@@ -419,8 +482,12 @@ async def search_one(
             continue
 
 
-        # On ignore les billets au-dessus du plafond.
-        if amount > route["max_price_eur"]:
+        # On ne garde pas les offres au-dessus
+        # du plafond nécessaire à cette recherche.
+        if (
+            amount
+            > search_route["max_price_eur"]
+        ):
             continue
 
 
@@ -435,20 +502,18 @@ async def search_one(
                 "id":
                     offer.get("id"),
 
-                "route_key":
-                    route["key"],
+                # Ici on conserve le trajet physique.
+                "origin":
+                    search_route["origin"],
 
-                "route":
-                    route["label"],
+                "destination":
+                    search_route["destination"],
 
                 "price":
                     amount,
 
                 "currency":
                     "EUR",
-
-                "threshold":
-                    route["max_price_eur"],
 
                 "departure_date":
                     departure.isoformat(),
@@ -465,6 +530,8 @@ async def search_one(
                 "expires_at":
                     offer.get("expires_at"),
 
+                # Permet toujours au frontend d'indiquer
+                # s'il s'agit du mode test Duffel.
                 "live_mode":
                     bool(
                         offer.get("live_mode")
@@ -512,7 +579,7 @@ async def perform_full_search():
     ) as client:
 
 
-        for route in ROUTES:
+        for search_route in SEARCH_ROUTES:
 
             for departure in DEPARTURE_DATES:
 
@@ -524,8 +591,8 @@ async def perform_full_search():
 
                     print(
                         "Recherche Duffel : "
-                        f"{route['origin']} → "
-                        f"{route['destination']} "
+                        f"{search_route['origin']} → "
+                        f"{search_route['destination']} "
                         f"{departure} / "
                         f"{return_date}"
                     )
@@ -533,7 +600,7 @@ async def perform_full_search():
 
                     offers = await search_one(
                         client,
-                        route,
+                        search_route,
                         departure,
                         return_date,
                     )
@@ -544,9 +611,8 @@ async def perform_full_search():
                     )
 
 
-                    # Important :
-                    # on évite d'enchaîner immédiatement
-                    # les Offer Requests.
+                    # Petite pause pour limiter les risques
+                    # de HTTP 429.
                     await asyncio.sleep(
                         REQUEST_DELAY_SECONDS
                     )
@@ -567,8 +633,6 @@ async def perform_full_search():
 
 async def run_full_search():
 
-    # Cas le plus rapide :
-    # le résultat récent est déjà disponible.
     if cache_is_valid():
 
         print(
@@ -578,11 +642,11 @@ async def run_full_search():
         return _search_cache["offers"]
 
 
-    # Une seule recherche complète à la fois.
     async with _search_lock:
 
-        # Pendant que nous attendions le verrou,
-        # une autre requête a peut-être rempli le cache.
+
+        # Le cache a peut-être été rempli pendant
+        # que cette requête attendait le verrou.
         if cache_is_valid():
 
             print(
@@ -612,6 +676,97 @@ async def run_full_search():
 
 
 # ============================================================
+# FILTRAGE D'UNE SECTION
+# ============================================================
+
+def offers_for_route(
+    offers: list[dict[str, Any]],
+    route: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """
+    Prend les résultats Duffel et crée les offres
+    correspondant à une section du site.
+
+    Cela permet notamment d'utiliser une seule recherche Paris
+    pour alimenter :
+
+    - Paris <= 750 €
+    - Paris entre 650 et 1000 €
+    """
+
+    matches = []
+
+
+    for offer in offers:
+
+        # Le trajet doit correspondre.
+        if (
+            offer["origin"]
+            != route["origin"]
+        ):
+            continue
+
+        if (
+            offer["destination"]
+            != route["destination"]
+        ):
+            continue
+
+
+        price = offer["price"]
+
+
+        # Limite basse INCLUSE.
+        if (
+            price
+            < route["min_price_eur"]
+        ):
+            continue
+
+
+        # Limite haute INCLUSE.
+        if (
+            price
+            > route["max_price_eur"]
+        ):
+            continue
+
+
+        # On copie l'offre pour pouvoir ajouter
+        # les informations propres à cette section.
+        result = offer.copy()
+
+        result["route_key"] = (
+            route["key"]
+        )
+
+        result["route"] = (
+            route["label"]
+        )
+
+        result["min_price"] = (
+            route["min_price_eur"]
+        )
+
+        result["threshold"] = (
+            route["max_price_eur"]
+        )
+
+        matches.append(
+            result
+        )
+
+
+    matches.sort(
+        key=lambda offer:
+            offer["price"]
+    )
+
+
+    return matches
+
+
+# ============================================================
 # ROUTE /
 # ============================================================
 
@@ -619,9 +774,11 @@ async def run_full_search():
 async def root():
 
     return {
-        "status": "ok",
+        "status":
+            "ok",
 
         "search_window": {
+
             "departure": [
                 d.isoformat()
                 for d in DEPARTURE_DATES
@@ -633,9 +790,19 @@ async def root():
             ],
         },
 
-        "thresholds": {
-            route["label"]:
-                route["max_price_eur"]
+        "price_ranges": {
+
+            route["key"]: {
+                "label":
+                    route["label"],
+
+                "min":
+                    route["min_price_eur"],
+
+                "max":
+                    route["max_price_eur"],
+            }
+
             for route in ROUTES
         },
 
@@ -660,6 +827,7 @@ async def search():
 
         raise HTTPException(
             status_code=504,
+
             detail=(
                 "Timeout lors de la "
                 "communication avec Duffel: "
@@ -672,6 +840,7 @@ async def search():
 
         raise HTTPException(
             status_code=502,
+
             detail=(
                 "Erreur réseau avec Duffel: "
                 f"{exc}"
@@ -689,22 +858,28 @@ async def search():
 
     by_route = {}
 
+    all_section_offers = []
+
 
     for route in ROUTES:
 
-        matches = [
-            offer
-            for offer in offers
-            if (
-                offer["route_key"]
-                == route["key"]
-            )
-        ]
+        matches = offers_for_route(
+            offers,
+            route,
+        )
+
+        all_section_offers.extend(
+            matches
+        )
 
 
         by_route[route["key"]] = {
+
             "label":
                 route["label"],
+
+            "min_price":
+                route["min_price_eur"],
 
             "threshold":
                 route["max_price_eur"],
@@ -714,14 +889,45 @@ async def search():
         }
 
 
+    # Attention :
+    # une même offre Paris peut appartenir à plusieurs sections.
+    # Pour la meilleure offre générale, on utilise donc
+    # directement les résultats Duffel originaux.
+    best_offer = None
+
+
+    if offers:
+
+        cheapest = offers[0]
+
+        # On détermine une étiquette lisible.
+        if cheapest["origin"] == "PAR":
+            route_label = "Paris ↔ Kinshasa"
+
+        elif cheapest["origin"] == "BRU":
+            route_label = "Bruxelles ↔ Kinshasa"
+
+        else:
+            route_label = (
+                f"{cheapest['origin']} ↔ "
+                f"{cheapest['destination']}"
+            )
+
+
+        best_offer = cheapest.copy()
+
+        best_offer["route"] = (
+            route_label
+        )
+
+
     return {
+
         "best_offer":
-            offers[0]
-            if offers
-            else None,
+            best_offer,
 
         "total_matches":
-            len(offers),
+            len(all_section_offers),
 
         "routes":
             by_route,
