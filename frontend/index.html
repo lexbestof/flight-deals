@@ -1,65 +1,1013 @@
 <!doctype html>
 <html lang="fr">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Alerte vols Kinshasa</title>
-<style>
-body{font-family:system-ui,sans-serif;background:#f5f7fb;color:#172033;margin:0;padding:28px 16px}
-.wrap{max-width:950px;margin:auto}
-.card{background:#fff;border-radius:20px;padding:24px;box-shadow:0 8px 30px #00000012;margin-bottom:18px}
-h1{font-size:clamp(30px,6vw,52px);margin:.2em 0}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
-.rule{background:#f7f9fc;border:1px solid #e1e6ef;border-radius:14px;padding:15px}
-button{border:0;background:#172033;color:white;padding:13px 18px;border-radius:10px;font-weight:700;font-size:16px;cursor:pointer}
-.price{font-size:28px;font-weight:850}
-.offer{border-top:1px solid #edf0f5;padding:16px 0}
-.muted{color:#697489}
-.ok{background:#eaf8ef;border:1px solid #bee6cb;border-radius:14px;padding:16px}
-</style>
-</head>
-<body>
-<div class="wrap">
-<section class="card">
-<h1>Vols vers Kinshasa</h1>
-<p>Recherche fixe : départ autour du 19 août 2026 (±1 jour) et retour autour du 30 août 2026 (±1 jour).</p>
-<div class="grid">
-<div class="rule"><strong>Paris ↔ Kinshasa</strong><br>18–20 août → 29–31 août<br><b>≤ 750 €</b></div>
-<div class="rule"><strong>Bruxelles ↔ Kinshasa</strong><br>18–20 août → 29–31 août<br><b>≤ 650 €</b></div>
-</div>
-<p><button id="btn">Vérifier maintenant</button></p>
-</section>
-<div id="status"></div>
-<div id="results"></div>
-</div>
-<script>
-const API_BASE_URL="https://flight-deals.onrender.com/";
-const btn=document.getElementById("btn"), status=document.getElementById("status"), results=document.getElementById("results");
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 
-function offer(o){
- const a=(o.outbound?.airlines||[]).join(", ")||o.owner||"Compagnie";
- return `<div class="offer"><div class="price">${o.price.toFixed(2)} €</div>
- <b>${o.route}</b><br>
- <span class="muted">Aller ${o.departure_date} · Retour ${o.return_date} · ${a} · ${o.outbound?.stops ?? "?"} escale(s) à l'aller</span></div>`;
-}
-btn.onclick=async()=>{
- btn.disabled=true; status.innerHTML='<div class="card">Recherche en cours…</div>'; results.innerHTML="";
- try{
-  const r=await fetch(API_BASE_URL+"/search"), d=await r.json();
-  if(!r.ok) throw new Error(d.detail||"Erreur");
-  status.innerHTML=d.best_offer
-   ? `<div class="ok"><b>Meilleure offre :</b> ${d.best_offer.route} — <span class="price">${d.best_offer.price.toFixed(2)} €</span></div>`
-   : `<div class="card"><b>Aucune offre sous les plafonds actuellement.</b></div>`;
-  let html="";
-  for(const [key,route] of Object.entries(d.routes)){
-   html+=`<section class="card"><h2>${route.label}</h2><p class="muted">Plafond ${route.threshold.toFixed(0)} €</p>`;
-   html+=route.offers.length?route.offers.slice(0,10).map(offer).join(""):"<p>Aucune offre dans le budget.</p>";
-   html+="</section>";
+  <title>Alerte vols Kinshasa</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --text: #172033;
+      --muted: #697489;
+      --border: #e4e9f1;
+      --primary: #172033;
+      --success-bg: #eaf8ef;
+      --success-border: #bee6cb;
+      --warning-bg: #fff7e6;
+      --warning-border: #f1d59a;
+      --danger-bg: #fff0f0;
+      --danger-border: #efbaba;
+    }
+
+    body {
+      font-family:
+        Inter,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+    }
+
+    .page {
+      min-height: 100vh;
+    }
+
+    .hero {
+      background:
+        linear-gradient(
+          135deg,
+          #172033,
+          #283957
+        );
+
+      color: white;
+      padding: 58px 20px 80px;
+    }
+
+    .wrap {
+      max-width: 1050px;
+      margin: auto;
+    }
+
+    .hero h1 {
+      margin: 0 0 12px;
+      font-size: clamp(34px, 7vw, 58px);
+      line-height: 1;
+    }
+
+    .hero p {
+      max-width: 700px;
+      margin: 0;
+      opacity: .86;
+      font-size: 18px;
+      line-height: 1.6;
+    }
+
+    main {
+      max-width: 1050px;
+      margin: -42px auto 60px;
+      padding: 0 16px;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 22px;
+      padding: 24px;
+      box-shadow:
+        0 10px 35px rgba(23, 32, 51, .08);
+
+      margin-bottom: 20px;
+    }
+
+    .search-card {
+      padding: 28px;
+    }
+
+    .search-card h2 {
+      margin-top: 0;
+    }
+
+    .rules {
+      display: grid;
+      grid-template-columns:
+        repeat(auto-fit, minmax(250px, 1fr));
+
+      gap: 14px;
+      margin: 22px 0;
+    }
+
+    .rule {
+      background: #f7f9fc;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+    }
+
+    .rule-title {
+      font-size: 18px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .rule-price {
+      display: inline-block;
+      margin-top: 10px;
+      font-weight: 800;
+      font-size: 21px;
+    }
+
+    button {
+      border: 0;
+      background: var(--primary);
+      color: white;
+
+      padding: 14px 22px;
+      border-radius: 12px;
+
+      font-size: 16px;
+      font-weight: 750;
+
+      cursor: pointer;
+
+      transition:
+        transform .15s ease,
+        opacity .15s ease;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      opacity: .6;
+      cursor: wait;
+    }
+
+    .status {
+      margin-bottom: 20px;
+    }
+
+    .best {
+      background: var(--success-bg);
+      border: 1px solid var(--success-border);
+      border-radius: 18px;
+      padding: 22px;
+    }
+
+    .best-label {
+      color: #39724b;
+      font-size: 14px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .best-route {
+      font-size: 22px;
+      font-weight: 800;
+      margin-top: 5px;
+    }
+
+    .best-price {
+      font-size: 38px;
+      font-weight: 900;
+      margin-top: 4px;
+    }
+
+    .notice {
+      background: var(--warning-bg);
+      border: 1px solid var(--warning-border);
+      padding: 14px 16px;
+      border-radius: 14px;
+      margin-top: 14px;
+      color: #71551e;
+    }
+
+    .error {
+      background: var(--danger-bg);
+      border: 1px solid var(--danger-border);
+      padding: 18px;
+      border-radius: 16px;
+      color: #812f2f;
+    }
+
+    .route-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 15px;
+      margin-bottom: 10px;
+    }
+
+    .route-header h2 {
+      margin: 0;
+      font-size: 25px;
+    }
+
+    .threshold {
+      background: #eef2f7;
+      padding: 7px 11px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+
+    .offers {
+      display: grid;
+      gap: 14px;
+      margin-top: 20px;
+    }
+
+    .offer {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 20px;
+
+      transition:
+        box-shadow .15s ease,
+        transform .15s ease;
+    }
+
+    .offer:hover {
+      transform: translateY(-1px);
+      box-shadow:
+        0 8px 22px rgba(23, 32, 51, .07);
+    }
+
+    .offer-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 15px;
+      margin-bottom: 18px;
+    }
+
+    .airline {
+      font-weight: 800;
+      font-size: 18px;
+    }
+
+    .route-name {
+      color: var(--muted);
+      margin-top: 3px;
+    }
+
+    .price {
+      font-size: 30px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .legs {
+      display: grid;
+      grid-template-columns:
+        repeat(auto-fit, minmax(260px, 1fr));
+
+      gap: 12px;
+    }
+
+    .leg {
+      background: #f8fafc;
+      border-radius: 14px;
+      padding: 15px;
+    }
+
+    .leg-title {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--muted);
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .airports {
+      font-size: 19px;
+      font-weight: 850;
+      margin-bottom: 8px;
+    }
+
+    .details {
+      color: var(--muted);
+      line-height: 1.55;
+      font-size: 14px;
+    }
+
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 14px;
+    }
+
+    .badge {
+      background: #eef2f7;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .badge-test {
+      background: #fff3cd;
+      color: #70530b;
+    }
+
+    .badge-live {
+      background: #e6f6eb;
+      color: #27653a;
+    }
+
+    .empty {
+      color: var(--muted);
+      padding: 14px 0;
+    }
+
+    .loading {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .spinner {
+      width: 20px;
+      height: 20px;
+
+      border: 3px solid #dce2eb;
+      border-top-color: var(--primary);
+
+      border-radius: 50%;
+
+      animation: spin .7s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    footer {
+      text-align: center;
+      color: var(--muted);
+      padding: 20px;
+      font-size: 14px;
+    }
+
+    @media (max-width: 600px) {
+      .hero {
+        padding-top: 40px;
+      }
+
+      main {
+        margin-top: -30px;
+      }
+
+      .card {
+        padding: 18px;
+        border-radius: 17px;
+      }
+
+      .offer-top {
+        flex-direction: column;
+      }
+
+      .price {
+        font-size: 27px;
+      }
+
+      button {
+        width: 100%;
+      }
+
+      .route-header {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="page">
+
+  <header class="hero">
+    <div class="wrap">
+
+      <h1>✈ Vols vers Kinshasa</h1>
+
+      <p>
+        Recherche automatique des meilleures offres
+        entre Paris ou Bruxelles et Kinshasa.
+      </p>
+
+    </div>
+  </header>
+
+
+  <main>
+
+    <section class="card search-card">
+
+      <h2>Critères de recherche</h2>
+
+      <p>
+        Départ autour du
+        <strong>19 août 2026</strong>
+        et retour autour du
+        <strong>30 août 2026</strong>,
+        avec une flexibilité de ±1 jour.
+      </p>
+
+      <div class="rules">
+
+        <div class="rule">
+
+          <div class="rule-title">
+            🇫🇷 Paris ↔ Kinshasa
+          </div>
+
+          <div>
+            18–20 août
+            →
+            29–31 août
+          </div>
+
+          <span class="rule-price">
+            Maximum 750 €
+          </span>
+
+        </div>
+
+
+        <div class="rule">
+
+          <div class="rule-title">
+            🇧🇪 Bruxelles ↔ Kinshasa
+          </div>
+
+          <div>
+            18–20 août
+            →
+            29–31 août
+          </div>
+
+          <span class="rule-price">
+            Maximum 650 €
+          </span>
+
+        </div>
+
+      </div>
+
+      <button id="btn">
+        Vérifier maintenant
+      </button>
+
+    </section>
+
+
+    <div id="status" class="status"></div>
+
+    <div id="results"></div>
+
+  </main>
+
+
+  <footer>
+    Les prix et disponibilités peuvent changer avant réservation.
+  </footer>
+
+</div>
+
+
+<script>
+
+const API_BASE_URL =
+  "https://flight-deals.onrender.com";
+
+const btn =
+  document.getElementById("btn");
+
+const status =
+  document.getElementById("status");
+
+const results =
+  document.getElementById("results");
+
+
+function escapeHtml(value) {
+
+  if (value === null || value === undefined) {
+    return "";
   }
-  results.innerHTML=html;
- }catch(e){status.innerHTML=`<div class="card">${e.message}</div>`}
- finally{btn.disabled=false}
-};
+
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+
+function formatPrice(value) {
+
+  return new Intl.NumberFormat(
+    "fr-FR",
+    {
+      style: "currency",
+      currency: "EUR"
+    }
+  ).format(value);
+}
+
+
+function formatDate(value) {
+
+  if (!value) {
+    return "—";
+  }
+
+  const date =
+    new Date(value);
+
+  return new Intl.DateTimeFormat(
+    "fr-FR",
+    {
+      weekday: "short",
+      day: "numeric",
+      month: "short"
+    }
+  ).format(date);
+}
+
+
+function formatDateTime(value) {
+
+  if (!value) {
+    return "—";
+  }
+
+  const date =
+    new Date(value);
+
+  return new Intl.DateTimeFormat(
+    "fr-FR",
+    {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit"
+    }
+  ).format(date);
+}
+
+
+function stopsText(stops) {
+
+  if (stops === 0) {
+    return "Direct";
+  }
+
+  if (stops === 1) {
+    return "1 escale";
+  }
+
+  return `${stops} escales`;
+}
+
+
+function airlineName(offer) {
+
+  const airlines =
+    offer.outbound?.airlines || [];
+
+  if (airlines.length) {
+    return airlines.join(", ");
+  }
+
+  return offer.owner || "Compagnie";
+}
+
+
+function legHtml(title, leg) {
+
+  if (!leg) {
+    return "";
+  }
+
+  return `
+    <div class="leg">
+
+      <div class="leg-title">
+        ${escapeHtml(title)}
+      </div>
+
+      <div class="airports">
+        ${escapeHtml(leg.from || "?")}
+        →
+        ${escapeHtml(leg.to || "?")}
+      </div>
+
+      <div class="details">
+
+        <div>
+          Départ :
+          <strong>
+            ${escapeHtml(
+              formatDateTime(
+                leg.departing_at
+              )
+            )}
+          </strong>
+        </div>
+
+        <div>
+          Arrivée :
+          <strong>
+            ${escapeHtml(
+              formatDateTime(
+                leg.arriving_at
+              )
+            )}
+          </strong>
+        </div>
+
+        <div>
+          ${escapeHtml(
+            stopsText(
+              leg.stops ?? 0
+            )
+          )}
+        </div>
+
+      </div>
+
+    </div>
+  `;
+}
+
+
+function offerHtml(offer) {
+
+  const modeBadge =
+    offer.live_mode
+      ? `
+        <span class="badge badge-live">
+          Offre réelle
+        </span>
+      `
+      : `
+        <span class="badge badge-test">
+          Mode test Duffel
+        </span>
+      `;
+
+  return `
+    <article class="offer">
+
+      <div class="offer-top">
+
+        <div>
+
+          <div class="airline">
+            ${escapeHtml(
+              airlineName(offer)
+            )}
+          </div>
+
+          <div class="route-name">
+            ${escapeHtml(
+              offer.route
+            )}
+          </div>
+
+        </div>
+
+        <div class="price">
+          ${escapeHtml(
+            formatPrice(
+              offer.price
+            )
+          )}
+        </div>
+
+      </div>
+
+
+      <div class="legs">
+
+        ${legHtml(
+          "Aller",
+          offer.outbound
+        )}
+
+        ${legHtml(
+          "Retour",
+          offer.return
+        )}
+
+      </div>
+
+
+      <div class="badges">
+
+        <span class="badge">
+          Aller :
+          ${escapeHtml(
+            formatDate(
+              offer.departure_date
+            )
+          )}
+        </span>
+
+        <span class="badge">
+          Retour :
+          ${escapeHtml(
+            formatDate(
+              offer.return_date
+            )
+          )}
+        </span>
+
+        ${modeBadge}
+
+      </div>
+
+    </article>
+  `;
+}
+
+
+function renderBestOffer(offer) {
+
+  if (!offer) {
+
+    status.innerHTML = `
+      <div class="card">
+        <strong>
+          Aucune offre sous les plafonds
+          actuellement.
+        </strong>
+      </div>
+    `;
+
+    return;
+  }
+
+
+  status.innerHTML = `
+
+    <div class="best">
+
+      <div class="best-label">
+        🏆 Meilleure offre trouvée
+      </div>
+
+      <div class="best-route">
+        ${escapeHtml(
+          offer.route
+        )}
+      </div>
+
+      <div class="best-price">
+        ${escapeHtml(
+          formatPrice(
+            offer.price
+          )
+        )}
+      </div>
+
+      <div>
+        ${escapeHtml(
+          airlineName(offer)
+        )}
+        ·
+        ${escapeHtml(
+          formatDate(
+            offer.departure_date
+          )
+        )}
+        →
+        ${escapeHtml(
+          formatDate(
+            offer.return_date
+          )
+        )}
+      </div>
+
+      ${
+        !offer.live_mode
+          ? `
+            <div class="notice">
+              ⚠️ Cette offre provient actuellement
+              du mode test de Duffel.
+              Elle ne correspond pas encore à
+              un billet réellement réservable.
+            </div>
+          `
+          : ""
+      }
+
+    </div>
+  `;
+}
+
+
+function renderRoutes(data) {
+
+  let html = "";
+
+
+  for (
+    const route
+    of Object.values(data.routes || {})
+  ) {
+
+    html += `
+
+      <section class="card">
+
+        <div class="route-header">
+
+          <h2>
+            ${escapeHtml(
+              route.label
+            )}
+          </h2>
+
+          <span class="threshold">
+            Plafond :
+            ${escapeHtml(
+              formatPrice(
+                route.threshold
+              )
+            )}
+          </span>
+
+        </div>
+
+        <div class="offers">
+
+          ${
+            route.offers?.length
+              ? route.offers
+                  .slice(0, 10)
+                  .map(offerHtml)
+                  .join("")
+              : `
+                <div class="empty">
+                  Aucune offre trouvée
+                  dans ce budget.
+                </div>
+              `
+          }
+
+        </div>
+
+      </section>
+    `;
+  }
+
+
+  results.innerHTML = html;
+}
+
+
+async function searchFlights() {
+
+  btn.disabled = true;
+
+  btn.textContent =
+    "Recherche en cours…";
+
+
+  status.innerHTML = `
+
+    <div class="card loading">
+
+      <div class="spinner"></div>
+
+      <div>
+        Recherche des vols auprès
+        de Duffel…
+      </div>
+
+    </div>
+  `;
+
+
+  results.innerHTML = "";
+
+
+  try {
+
+    const response =
+      await fetch(
+        `${API_BASE_URL}/search`,
+        {
+          method: "GET",
+          headers: {
+            "Accept": "application/json"
+          }
+        }
+      );
+
+
+    let data;
+
+
+    try {
+
+      data =
+        await response.json();
+
+    } catch {
+
+      throw new Error(
+        "Le serveur a renvoyé une réponse invalide."
+      );
+    }
+
+
+    if (!response.ok) {
+
+      throw new Error(
+        data.detail ||
+        `Erreur serveur (${response.status})`
+      );
+    }
+
+
+    renderBestOffer(
+      data.best_offer
+    );
+
+
+    renderRoutes(
+      data
+    );
+
+
+  } catch (error) {
+
+    console.error(error);
+
+
+    status.innerHTML = `
+
+      <div class="error">
+
+        <strong>
+          Impossible d'effectuer
+          la recherche.
+        </strong>
+
+        <div style="margin-top:8px">
+          ${escapeHtml(
+            error.message
+          )}
+        </div>
+
+        <div style="margin-top:8px">
+          Vérifie que l'API Render
+          est disponible.
+        </div>
+
+      </div>
+    `;
+
+
+  } finally {
+
+    btn.disabled = false;
+
+    btn.textContent =
+      "Vérifier maintenant";
+  }
+}
+
+
+btn.addEventListener(
+  "click",
+  searchFlights
+);
+
 </script>
+
 </body>
 </html>
