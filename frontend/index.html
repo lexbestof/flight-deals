@@ -177,6 +177,10 @@
       border-color: var(--blue-border);
     }
 
+    .rule.special-high {
+      background: #fff8ee;
+      border-color: #f0d7ae;
+    }
 
     .rule-title {
       font-size: 18px;
@@ -746,6 +750,30 @@
           </span>
 
         </div>
+
+        <!-- PARIS 1001 - 2000 -->
+
+        <div class="rule special-high">
+
+            <div class="rule-title">
+                🇫🇷 Paris ↔ Kinshasa
+            </div>
+
+            <div class="rule-dates">
+                Aller : 18–20 août 2026<br>
+                Retour : 29–31 août 2026
+            </div>
+
+            <span class="rule-price">
+                De 1 001 € à 2 000 €
+            </span>
+
+            <span class="rule-description">
+                Autres possibilités
+            </span>
+
+        </div>
+        
 
       </div>
 
@@ -1331,15 +1359,24 @@
         route.offers?.length || 0;
 
 
-      const isExtendedParis =
-        key === "paris_650_1000";
+let sectionLabel =
+  "Recherche prioritaire";
 
 
-      const sectionLabel =
-        isExtendedParis
-          ? "Recherche élargie"
-          : "Recherche prioritaire";
+if (key === "paris_650_1000") {
 
+  sectionLabel =
+    "Recherche élargie";
+
+}
+
+
+if (key === "paris_1001_2000") {
+
+  sectionLabel =
+    "Autres possibilités";
+
+}
 
       html += `
 

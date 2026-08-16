@@ -71,11 +71,7 @@ ROUTES = [
         "label": "Paris ↔ Kinshasa",
         "origin": "PAR",
         "destination": "FIH",
-
-        # Pas de minimum.
         "min_price_eur": 0.0,
-
-        # Offres jusqu'à 750 € inclus.
         "max_price_eur": 750.0,
     },
 
@@ -84,25 +80,26 @@ ROUTES = [
         "label": "Bruxelles ↔ Kinshasa",
         "origin": "BRU",
         "destination": "FIH",
-
-        # Pas de minimum.
         "min_price_eur": 0.0,
-
-        # Offres jusqu'à 650 € inclus.
         "max_price_eur": 650.0,
     },
 
     {
         "key": "paris_650_1000",
-        "label": "Paris ↔ Kinshasa — 650 à 1000 €",
+        "label": "Paris ↔ Kinshasa",
         "origin": "PAR",
         "destination": "FIH",
-
-        # 650 € inclus.
         "min_price_eur": 650.0,
-
-        # 1000 € inclus.
         "max_price_eur": 1000.0,
+    },
+
+    {
+        "key": "paris_1001_2000",
+        "label": "Paris ↔ Kinshasa",
+        "origin": "PAR",
+        "destination": "FIH",
+        "min_price_eur": 1001.0,
+        "max_price_eur": 2000.0,
     },
 ]
 
@@ -128,20 +125,19 @@ SEARCH_ROUTES = [
         "origin": "PAR",
         "destination": "FIH",
 
-        # On récupère jusqu'à 1000 € pour pouvoir ensuite
-        # alimenter les deux sections Paris.
-        "max_price_eur": 1000.0,
+        # Une seule recherche Paris jusqu'à 2000 €.
+        # Les résultats seront ensuite répartis
+        # entre les différentes sections Paris.
+        "max_price_eur": 2000.0,
     },
 
     {
         "key": "brussels_search",
         "origin": "BRU",
         "destination": "FIH",
-
         "max_price_eur": 650.0,
     },
 ]
-
 
 # ============================================================
 # DATES
