@@ -113,7 +113,7 @@ async def run_full_search():
         raise RuntimeError("DUFFEL_ACCESS_TOKEN n'est pas configuré.")
 
     all_offers = []
-    async with httpx.AsyncClient(timeout=25.0) as client:
+    async with httpx.AsyncClient(timeout=40.0) as client:
         for route in ROUTES:
             for dep in DEPARTURE_DATES:
                 for ret in RETURN_DATES:
@@ -142,12 +142,33 @@ async def root():
 async def search():
     try:
         offers = await run_full_search()
+
+    except httpx.TimeoutException as exc:
+        raise HTTPException(
+            status_code=504,
+            detail=f"Timeout lors de la communication avec Duffel: {exc}"
+        )
+
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Erreur réseau avec Duffel: {exc}"
+        )
+
     except RuntimeError as exc:
-        raise HTTPException(status_code=502, detail=str(exc))
+        raise HTTPException(
+            status_code=502,
+            detail=str(exc)
+        )
 
     by_route = {}
+
     for route in ROUTES:
-        matches = [o for o in offers if o["route_key"] == route["key"]]
+        matches = [
+            o for o in offers
+            if o["route_key"] == route["key"]
+        ]
+
         by_route[route["key"]] = {
             "label": route["label"],
             "threshold": route["max_price_eur"],
@@ -158,7 +179,13 @@ async def search():
         "best_offer": offers[0] if offers else None,
         "total_matches": len(offers),
         "routes": by_route,
-        "departure_dates": [d.isoformat() for d in DEPARTURE_DATES],
-        "return_dates": [d.isoformat() for d in RETURN_DATES],
+        "departure_dates": [
+            d.isoformat()
+            for d in DEPARTURE_DATES
+        ],
+        "return_dates": [
+            d.isoformat()
+            for d in RETURN_DATES
+        ],
         "notice": "Les prix peuvent changer ou expirer avant réservation.",
     }
