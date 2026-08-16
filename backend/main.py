@@ -134,7 +134,7 @@ async def root():
             "departure": [d.isoformat() for d in DEPARTURE_DATES],
             "return": [d.isoformat() for d in RETURN_DATES],
         },
-        "thresholds": {r["route"]: r["max_price_eur"] for r in ROUTES},
+        "thresholds": {r["label"]: r["max_price_eur"] for r in ROUTES},
     }
 
 
